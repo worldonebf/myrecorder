@@ -1,0 +1,53 @@
+name: FFmpeg-Native-Action
+on: [push]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          location: D:\msys64
+          install: >-
+            base-devel
+            mingw-w64-x86_64-toolchain
+            mingw-w64-x86_64-x264
+            mingw-w64-x86_64-zlib
+
+      - name: Compile
+        shell: msys2 {0}
+        run: |
+          # 极致精简：仅保留录屏和推流必要组件
+          ./configure \
+            --arch=x86_64 \
+            --target-os=mingw32 \
+            --enable-gpl \
+            --enable-libx264 \
+            --enable-nonfree \
+            --disable-shared \
+            --enable-static \
+            --disable-debug \
+            --disable-all \
+            --enable-ffmpeg \
+            --enable-avcodec \
+            --enable-avformat \
+            --enable-avdevice \
+            --enable-swscale \
+            --enable-encoder=libx264 \
+            --enable-indev=gdigrab \
+            --enable-muxer=mp4,flv,segment \
+            --enable-protocol=file,rtmp,tcp \
+            --enable-filter=scale \
+            --pkg-config-flags="--static"
+          
+          make -j$(nproc)
+
+      - name: Release
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-custom-win64
+          path: ffmpeg.exe
