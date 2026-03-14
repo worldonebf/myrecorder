@@ -48,6 +48,7 @@ jobs:
             --pkg-config-flags="--static"
           
           make -j$(nproc)
+          make install
           strip ffmpeg.exe
           echo "Listing all executable files found:"
           find . -maxdepth 2 -name "*.exe"
