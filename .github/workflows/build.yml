@@ -18,6 +18,7 @@ jobs:
             mingw-w64-x86_64-x264
             mingw-w64-x86_64-zlib
             nasm
+            make
             pkg-config
 
       - name: Compile
@@ -47,6 +48,7 @@ jobs:
             --pkg-config-flags="--static"
           
           make -j$(nproc)
+          strip ffmpeg.exe
           echo "Listing all executable files found:"
           find . -maxdepth 2 -name "*.exe"
           ls -lh ffmpeg.exe
