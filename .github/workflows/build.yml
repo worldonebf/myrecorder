@@ -17,6 +17,8 @@ jobs:
             mingw-w64-x86_64-toolchain
             mingw-w64-x86_64-x264
             mingw-w64-x86_64-zlib
+            nasm
+            pkg-config
 
       - name: Compile
         shell: msys2 {0}
