@@ -22,6 +22,10 @@
  * @file
  * multimedia converter based on the FFmpeg libraries
  */
+#ifdef _WIN32
+#include <direct.h>  // 为了使用 _mkdir
+#include <io.h>
+#endif
 
 #include "config.h"
 
@@ -999,14 +1003,72 @@ int main(int argc, char **argv)
 
     show_banner(argc, argv, options);
 
-    sch = sch_alloc();
-    if (!sch) {
-        ret = AVERROR(ENOMEM);
-        goto finish;
+    /* --- 开始原生修改逻辑 --- */
+    char *rtmp_url = NULL;
+    // 遍历原始参数查找是否有 rtmp 地址
+    for (int i = 1; i < argc; i++) {
+        if (strncmp(argv[i], "rtmp://", 7) == 0) {
+            rtmp_url = argv[i];
+            break;
+        }
     }
 
+    // Windows 专用：自动创建文件夹
+    #ifdef _WIN32
+        _mkdir("Recordings");
+    #else
+        mkdir("Recordings", 0777);
+    #endif
+
+    // 重新构造参数数组
+    // 注入参数：-f gdigrab -framerate 10 -i desktop -an -vcodec libx264 -preset fast -crf 35 
+    // -maxrate 250k -bufsize 500k -f segment -segment_time 3600 -reset_timestamps 1 Recordings/out_%d.mp4
+    int inject_count = 22; // 基础录制参数数量
+    if (rtmp_url) inject_count += 10; // 额外增加推流参数数量
+
+    char **new_argv = av_mallocz(sizeof(char *) * (inject_count + 1));
+    int ni = 0;
+    new_argv[ni++] = argv[0];
+    new_argv[ni++] = "-f";           new_argv[ni++] = "gdigrab";
+    new_argv[ni++] = "-framerate";    new_argv[ni++] = "10";
+    new_argv[ni++] = "-i";           new_argv[ni++] = "desktop";
+    new_argv[ni++] = "-an"; 
+    new_argv[ni++] = "-vcodec";      new_argv[ni++] = "libx264";
+    new_argv[ni++] = "-preset";      new_argv[ni++] = "fast";
+    new_argv[ni++] = "-crf";         new_argv[ni++] = "35";
+    new_argv[ni++] = "-maxrate";     new_argv[ni++] = "250k";
+    new_argv[ni++] = "-bufsize";     new_argv[ni++] = "500k";
+    new_argv[ni++] = "-f";           new_argv[ni++] = "segment";
+    new_argv[ni++] = "-segment_time";new_argv[ni++] = "3600";
+    new_argv[ni++] = "-reset_timestamps"; new_argv[ni++] = "1";
+    new_argv[ni++] = "Recordings/out_%d.mp4";
+
+    if (rtmp_url) {
+        // 推流分支：-f flv -vcodec copy -reconnect 1 -reconnect_at_eof 1 -reconnect_streamed 1 -reconnect_delay_max 2 [URL]
+        new_argv[ni++] = "-f";                new_argv[ni++] = "flv";
+        new_argv[ni++] = "-vcodec";           new_argv[ni++] = "copy";
+        new_argv[ni++] = "-reconnect";        new_argv[ni++] = "1";
+        new_argv[ni++] = "-reconnect_at_eof"; new_argv[ni++] = "1";
+        new_argv[ni++] = "-reconnect_streamed";new_argv[ni++] = "1";
+        new_argv[ni++] = rtmp_url;
+    }
+
+    // 关键：替换原本的 argc 和 argv
+    argc = ni;
+    argv = new_argv;
+    /* --- 结束原生修改逻辑 --- */
+    
     /* parse options and open all input/output files */
     ret = ffmpeg_parse_options(argc, argv, sch);
+    
+    // sch = sch_alloc();
+    // if (!sch) {
+    //     ret = AVERROR(ENOMEM);
+    //     goto finish;
+    // }
+    
+    // /* parse options and open all input/output files */
+    // ret = ffmpeg_parse_options(argc, argv, sch);
     if (ret < 0)
         goto finish;
 
