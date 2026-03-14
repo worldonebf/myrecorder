@@ -47,9 +47,12 @@ jobs:
             --pkg-config-flags="--static"
           
           make -j$(nproc)
-
+          ls -lh ffmpeg.exe
+          
       - name: Release
         uses: actions/upload-artifact@v4
         with:
           name: ffmpeg-custom-win64
-          path: ffmpeg.exe
+          path: |
+            ./ffmpeg.exe
+          if-no-files-found: error
