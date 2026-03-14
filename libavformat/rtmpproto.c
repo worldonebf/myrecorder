@@ -3139,32 +3139,23 @@ static int rtmp_write(URLContext *s, const uint8_t *buf, int size)
                 }
             }
 
-            if ((ret = rtmp_send_packet(rt, &rt->out_pkt, 0)) < 0)
-                // return ret;
-
-            av_log(s, AV_LOG_WARNING, "RTMP Send failed (ret:%d), attempting infinite reconnect...\n", ret);
-    
-    while (1) {
-                    // 1. 关闭底层流
+            if ((ret = rtmp_send_packet(rt, &rt->out_pkt, 0)) < 0) {
+                av_log(s, AV_LOG_WARNING, "RTMP connection lost, retrying infinitely...\n");
+                while (1) {
                     if (rt->stream) {
                         ffurl_closep(&rt->stream);
                     }
-                    
-                    // 2. 延时 2 秒 (现在已经包含了 libavutil/time.h)
                     av_usleep(2000000); 
-
-                    // 3. 重新打开。注意第 4 个参数传 NULL，因为我们不需要额外的 AVDictionary
                     if (rtmp_open(s, s->filename, s->flags, NULL) == 0) {
                         av_log(s, AV_LOG_INFO, "RTMP Reconnected successfully.\n");
-                        // 4. 重连后尝试重新发送包
                         if ((ret = rtmp_send_packet(rt, &rt->out_pkt, 0)) >= 0) {
-                            break; // 成功发送，退出 while(1) 循环
+                            break; 
                         }
                     }
                     av_log(s, AV_LOG_ERROR, "Reconnect failed, still trying...\n");
                 }
             }
-            // --- 原生修改结束 ---
+            // --- 原生重连手术结束 ---
                 
             rt->flv_size = 0;
             rt->flv_off = 0;
