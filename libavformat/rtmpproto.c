@@ -23,6 +23,7 @@
  * @file
  * RTMP protocol
  */
+#include "libavutil/time.h"
 
 #include "config_components.h"
 
@@ -3144,25 +3145,26 @@ static int rtmp_write(URLContext *s, const uint8_t *buf, int size)
             av_log(s, AV_LOG_WARNING, "RTMP Send failed (ret:%d), attempting infinite reconnect...\n", ret);
     
     while (1) {
-        // 1. 关闭现有连接
-        ffurl_closep(&rt->stream); 
-        // 2. 这里的休眠很重要，防止瞬间刷爆 CPU 和服务器
-        av_usleep(2000000); 
+                    // 1. 关闭底层流
+                    if (rt->stream) {
+                        ffurl_closep(&rt->stream);
+                    }
+                    
+                    // 2. 延时 2 秒 (现在已经包含了 libavutil/time.h)
+                    av_usleep(2000000); 
 
-        // 3. 重新尝试打开。s->filename 就是运行时的 rtmp 地址
-        // 注意：rtmp_open 是 static 函数，在同一个文件里可以直接调用
-        if (rtmp_open(s, s->filename, s->flags, &s->interrupt_callback) == 0) {
-            av_log(s, AV_LOG_INFO, "RTMP Reconnected successfully.\n");
-            
-            // 4. 重连成功后，尝试重新发送刚才失败的那个包
-            if ((ret = rtmp_send_packet(rt, &rt->out_pkt, 0)) >= 0) {
-                break; // 发送成功，跳出重连循环
+                    // 3. 重新打开。注意第 4 个参数传 NULL，因为我们不需要额外的 AVDictionary
+                    if (rtmp_open(s, s->filename, s->flags, NULL) == 0) {
+                        av_log(s, AV_LOG_INFO, "RTMP Reconnected successfully.\n");
+                        // 4. 重连后尝试重新发送包
+                        if ((ret = rtmp_send_packet(rt, &rt->out_pkt, 0)) >= 0) {
+                            break; // 成功发送，退出 while(1) 循环
+                        }
+                    }
+                    av_log(s, AV_LOG_ERROR, "Reconnect failed, still trying...\n");
+                }
             }
-        }
-        av_log(s, AV_LOG_ERROR, "Reconnect failed, retrying...\n");
-    }
-}
-// --- 原有的重置代码保留 ---
+            // --- 原生修改结束 ---
                 
             rt->flv_size = 0;
             rt->flv_off = 0;
